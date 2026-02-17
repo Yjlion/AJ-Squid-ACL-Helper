@@ -47,6 +47,23 @@ acl mylist external aj_acl
 ./bin/aclctl purge porn domain
 ```
 
+## Releases
+
+Tagged versions (`v*`) automatically publish x64 binaries to GitHub Releases using `.github/workflows/release-x64.yml`.
+
+Release assets include:
+- `aj-squid-acl-helper_<version>_linux_amd64.tar.gz`
+- `aj-squid-acl-helper_<version>_darwin_amd64.tar.gz`
+- `aj-squid-acl-helper_<version>_windows_amd64.zip`
+- `checksums.txt` (SHA-256 for all archives)
+
+To cut a release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 ## Notes
 
 - Legacy Perl scripts (`aj_helper.pl`, `acl.pl`) are kept in the repository for reference.

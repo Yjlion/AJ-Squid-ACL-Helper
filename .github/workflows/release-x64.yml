@@ -1,0 +1,108 @@
+name: Release x64 binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, windows, darwin]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build and package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          OUT_DIR="dist/${GOOS}-amd64"
+          mkdir -p "${OUT_DIR}"
+
+          EXT=""
+          ARCHIVE_EXT="tar.gz"
+          if [ "$GOOS" = "windows" ]; then
+            EXT=".exe"
+            ARCHIVE_EXT="zip"
+          fi
+
+          go build -trimpath -ldflags "-s -w" -o "${OUT_DIR}/aj-helper${EXT}" ./cmd/aj-helper
+          go build -trimpath -ldflags "-s -w" -o "${OUT_DIR}/aclctl${EXT}" ./cmd/aclctl
+
+          ARCHIVE_BASENAME="aj-squid-acl-helper_${VERSION}_${GOOS}_amd64"
+          if [ "$ARCHIVE_EXT" = "zip" ]; then
+            (cd "${OUT_DIR}" && zip -q "../../${ARCHIVE_BASENAME}.zip" "aj-helper${EXT}" "aclctl${EXT}")
+          else
+            tar -C "${OUT_DIR}" -czf "${ARCHIVE_BASENAME}.tar.gz" "aj-helper${EXT}" "aclctl${EXT}"
+          fi
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-amd64
+          path: |
+            aj-squid-acl-helper_${{ github.ref_name }}_${{ matrix.goos }}_amd64.tar.gz
+            aj-squid-acl-helper_${{ github.ref_name }}_${{ matrix.goos }}_amd64.zip
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Flatten artifacts
+        run: |
+          find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} . \;
+
+      - name: Generate checksums
+        run: |
+          shopt -s nullglob
+          files=(aj-squid-acl-helper_*.tar.gz aj-squid-acl-helper_*.zip)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release archives found" >&2
+            exit 1
+          fi
+          sha256sum "${files[@]}" > checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            aj-squid-acl-helper_*.tar.gz
+            aj-squid-acl-helper_*.zip
+            checksums.txt
+          generate_release_notes: true
