@@ -1,0 +1,61 @@
+name: Build x64 binaries
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
+  build-x64:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, windows, darwin]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build x64 binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist/${GOOS}-amd64
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+
+          go build -trimpath -ldflags "-s -w" -o dist/${GOOS}-amd64/aj-helper${EXT} ./cmd/aj-helper
+          go build -trimpath -ldflags "-s -w" -o dist/${GOOS}-amd64/aclctl${EXT} ./cmd/aclctl
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.goos }}-amd64
+          path: dist/${{ matrix.goos }}-amd64/
+          if-no-files-found: error
