@@ -1,18 +1,53 @@
 # AJ-Squid-ACL-Helper
-http://www.squid-cache.org/Misc/general.html
 
-This is a simple acl helper, compatible with big black lists, just to match urls with acls, keep use of other squid config, like http_access, and other matchs acls in default config.
-This keep centralized config in squid with high performance and no reload for new urls, nice to big lists ^_^, like DansGuardian lists or SquidGuard (http://www.squidguard.org/blacklists.html) lists and others ( https://www.malwarepatrol.net/ ).
+`AJ-Squid-ACL-Helper` is now implemented as standalone Go binaries for Squid external ACL checks and ACL list management.
 
-# Load in squid.conf with:
-        external_acl_type aj_acl %ACL %DST %URI /path/of/file/aj_helper.pl
-# Use to match, in squid.conf:
-        acl porn external aj_acl
-        acl mylist external aj_acl
-# Manage lists in shell with 
-        #> ./acl.pl add porn url sexy.com
-        #> ./acl.pl del porn url sexy.com
-        #> ./acl.pl purge porn
-        #> ./acl.pl purge porn domain
-        #> ./acl.pl list
-        #> ./acl.pl list porn er
+The project provides:
+- `aj-helper`: Squid `external_acl_type` helper that checks domain/url/regex ACL entries.
+- `aclctl`: command-line tool to add, delete, list, and purge ACL entries.
+
+ACL data is stored as plain text files under `lists/<group>/`:
+- `domains`
+- `urls`
+- `expressions`
+
+## Build
+
+```bash
+go build -o bin/aj-helper ./cmd/aj-helper
+go build -o bin/aclctl ./cmd/aclctl
+```
+
+## Squid integration
+
+```conf
+external_acl_type aj_acl %ACL %DST %URI /path/to/bin/aj-helper --base-dir /path/to/repo
+acl porn external aj_acl
+acl mylist external aj_acl
+```
+
+## Manage ACLs
+
+```bash
+# add
+./bin/aclctl add porn url sexy.com
+./bin/aclctl add porn domain bad.example
+./bin/aclctl add porn er 'https?://evil\\.example/.*'
+
+# delete
+./bin/aclctl del porn url sexy.com
+
+# list
+./bin/aclctl list
+./bin/aclctl list porn
+./bin/aclctl list porn er
+
+# purge
+./bin/aclctl purge porn
+./bin/aclctl purge porn domain
+```
+
+## Notes
+
+- Legacy Perl scripts (`aj_helper.pl`, `acl.pl`) are kept in the repository for reference.
+- The Go version does not require BerkeleyDB.
